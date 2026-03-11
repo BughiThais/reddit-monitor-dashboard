@@ -1,50 +1,59 @@
 import streamlit as st
 import pandas as pd
 import re
+import time
 
 st.set_page_config(page_title="Operação Reddit", layout="wide")
 
 st.title("🚀 Operação Reddit - Dashboard")
 
-# --- COLOQUE O SEU LINK AQUI ---
-URL_PLANILHA = "https://docs.google.com/spreadsheets/d/1FUwTQoih5UrBn-4j_A9qmcbHoGCeha2UsIuPoMTiuRE/edit?usp=sharing"
+# Link da sua planilha já configurado
+URL_BASE = "https://docs.google.com/spreadsheets/d/1FUwTQoih5UrBn-4j_A9qmcbHoGCeha2UsIuPoMTiuRE/export?format=csv"
 
 def extrair_link_reddit(texto):
     if not isinstance(texto, str): return ""
+    # Busca por links do reddit no texto vindo do Zapier
     links = re.findall(r'(https?://(?:www\.)?reddit\.com/[^\s]+)', texto)
-    return links[0] if links else "Link não detectado"
+    if links:
+        # Remove caracteres residuais como parênteses ou aspas no fim do link
+        return links[0].replace(')', '').replace('"', '').replace('>', '')
+    return "Link não detectado"
 
 def carregar_dados():
-    # Garante que o link seja convertido para formato de download CSV
-    if "edit" in URL_PLANILHA:
-        url_csv = URL_PLANILHA.split("/edit")[0] + "/export?format=csv"
-    else:
-        url_csv = URL_PLANILHA
-    
     try:
-        # O parâmetro clear_cache não existe aqui, então usamos um truque de tempo ou apenas lemos
-        df = pd.read_csv(url_csv)
-        if not df.empty and 'Link' in df.columns:
-            df['Link'] = df['Link'].apply(extrair_link_reddit)
+        # O 'time.time' gera um número diferente toda vez, forçando o Google a atualizar os dados
+        url_dinamica = f"{URL_BASE}&t={time.time()}"
+        df = pd.read_csv(url_dinamica)
+        
+        if not df.empty:
+            # Garante que as colunas existem antes de tratar
+            if 'Link' in df.columns:
+                df['Link'] = df['Link'].apply(extrair_link_reddit)
         return df
     except Exception as e:
-        return None
+        st.error(f"Erro ao ler a planilha: {e}")
+        return pd.DataFrame()
 
-if st.button('🔄 Atualizar Dashboard'):
-    df = carregar_dados()
-    if df is not None and not df.empty:
-        st.success(f"Encontrados {len(df)} alertas!")
-        st.dataframe(
-            df,
-            column_config={
-                "Link": st.column_config.LinkColumn("Link Direto", width="large"),
-                "Keyword": st.column_config.TextColumn("Termo"),
-                "Data": st.column_config.TextColumn("Data/Hora")
-            },
-            hide_index=True,
-            use_container_width=True
-        )
-    else:
-        st.error("O Streamlit não conseguiu ler os dados. Verifique se a planilha está 'Pública' (Qualquer pessoa com o link pode ler).")
+# Botão de atualização
+if st.button('🔄 Atualizar Dashboard Agora'):
+    with st.spinner('Buscando dados novos na planilha...'):
+        # Limpa o cache do Streamlit antes de ler
+        st.cache_data.clear()
+        df = carregar_dados()
+        
+        if not df.empty:
+            st.success(f"Sucesso! {len(df)} alertas encontrados.")
+            st.dataframe(
+                df,
+                column_config={
+                    "Link": st.column_config.LinkColumn("Link do Reddit", width="large"),
+                    "Keyword": st.column_config.TextColumn("Termo"),
+                    "Data": st.column_config.TextColumn("Data do Alerta")
+                },
+                hide_index=True,
+                use_container_width=True
+            )
+        else:
+            st.warning("A planilha parece estar vazia ou o Streamlit não conseguiu acessá-la.")
 
-st.info("Nota: Se a planilha tem dados e aqui não aparece, clique em 'Refresh' no navegador.")
+st.info("Dica: Se você acabou de ver o dado entrar na Planilha Google, aguarde 5 segundos e clique no botão acima.")
