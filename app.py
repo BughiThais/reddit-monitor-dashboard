@@ -8,7 +8,7 @@ st.title("🚀 Operação Reddit - Dashboard")
 st.write("Visualização em tempo real dos alertas capturados via Planilha.")
 
 # MANTENHA O SEU LINK DA PLANILHA AQUI
-URL_PLANILHA = "https://docs.google.com/spreadsheets/d/1FUwTQoih5UrBn-4j_A9qmcbHoGCeha2UsIuPoMTiuRE/edit?pli=1&gid=0#gid=0"
+URL_PLANILHA = "https://docs.google.com/spreadsheets/d/1FUwTQoih5UrBn-4j_A9qmcbHoGCeha2UsIuPoMTiuRE/edit?usp=sharing"
 
 if "edit" in URL_PLANILHA:
     URL_CSV = URL_PLANILHA.split("/edit")[0] + "/export?format=csv"
