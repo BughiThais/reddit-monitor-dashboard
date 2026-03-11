@@ -2,28 +2,30 @@ import streamlit as st
 import pandas as pd
 import time
 
-st.set_page_config(page_title="Teste Final", layout="wide")
+st.set_page_config(page_title="Operação Reddit", layout="wide")
 
-# Link direto para exportação CSV da sua planilha
+st.title("🚀 Operação Reddit")
+
+# Link direto para exportação
 URL = "https://docs.google.com/spreadsheets/d/1FUwTQoih5UrBn-4j_A9qmcbHoGCeha2UsIuPoMTiuRE/export?format=csv"
 
-st.title("🔎 Teste de Conexão")
-
-# Força a limpeza de cache toda vez que rodar
-st.cache_data.clear()
+# Botão para forçar a atualização
+if st.button('🔄 Atualizar Dados'):
+    st.cache_data.clear()
 
 try:
-    # Adicionamos um número aleatório no fim do link para o Google não enviar versão antiga
+    # O truque do time.time() evita que o Google entregue uma versão velha/vazia
     url_final = f"{URL}&t={time.time()}"
     df = pd.read_csv(url_final)
-    
-    st.success("Conexão com a planilha OK!")
-    st.write("Dados encontrados:")
-    st.write(df) # Isso vai mostrar a tabela crua, sem frescura
+
+    if not df.empty:
+        st.success(f"Encontramos {len(df)} linhas na planilha!")
+        # Mostra a tabela completa
+        st.dataframe(df, use_container_width=True)
+    else:
+        st.warning("A planilha foi encontrada, mas parece não ter dados nas linhas.")
 
 except Exception as e:
-    st.error(f"O Streamlit não conseguiu ler a planilha.")
-    st.info(f"Erro técnico: {e}")
+    st.error(f"Erro na leitura: {e}")
 
-if st.button('Tentar ler novamente'):
-    st.rerun()
+st.info("Nota: Verifique se os dados na sua Planilha Google começam na Linha 1.")
