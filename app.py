@@ -1,52 +1,34 @@
-import os
-import subprocess
-import sys
-
-# Força a instalação do pandas se ele não for encontrado
-try:
-    import pandas as pd
-except ImportError:
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "pandas"])
-    import pandas as pd
-
 import streamlit as st
-import time
+import pandas as pd
 
-st.set_page_config(page_title="Dashboard Reddit", layout="wide")
+# 1. Configuração da página conforme os docs
+st.set_page_config(page_title="Operação Reddit")
 
-st.title("🚀 Monitoramento Reddit & Zapier")
+st.title("🚀 Operação Reddit")
 
-# URL da sua planilha (formato CSV)
+# 2. URL de exportação da sua planilha
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1FUwTQoih5UrBn-4j_A9qmcbHoGCeha2UsIuPoMTiuRE/export?format=csv"
 
-def carregar_dados():
-    # Adicionamos um timestamp para evitar cache do Google
-    url = f"{SHEET_URL}&cache={int(time.time())}"
-    return pd.read_csv(url)
+# 3. Função de carregamento com cache (limpa a cada 10 minutos ou no botão)
+@st.cache_data(ttl=600)
+def load_data(url):
+    df = pd.read_csv(url)
+    return df
 
 try:
-    df = carregar_dados()
+    data = load_data(SHEET_URL)
     
-    if not df.empty:
-        st.success(f"Conectado com sucesso! {len(df)} alertas registrados.")
-        
-        # Formatação para o Zapier: Se a coluna 'Link' existir, tentamos limpar
-        if 'Link' in df.columns:
-            st.dataframe(
-                df, 
-                column_config={"Link": st.column_config.LinkColumn("Link do Alerta")},
-                use_container_width=True,
-                hide_index=True
-            )
-        else:
-            st.write(df)
+    if not data.empty:
+        st.write("### Alertas Recentes")
+        st.dataframe(data, use_container_width=True)
     else:
-        st.warning("A planilha foi lida, mas parece estar vazia. O Zapier já enviou dados para lá?")
+        st.info("A planilha está conectada, mas não há dados novos.")
 
 except Exception as e:
-    st.error("Erro na integração.")
-    st.info(f"O Streamlit não conseguiu ler os dados. Verifique se a planilha está 'Pública para qualquer pessoa com o link'.")
-    st.debug(f"Detalhes: {e}")
+    st.error("Erro ao conectar com o Google Sheets.")
+    st.exception(e)
 
-if st.button('🔄 Sincronizar Agora'):
+# Botão para forçar a atualização manual
+if st.button("Atualizar Dados"):
+    st.cache_data.clear()
     st.rerun()
