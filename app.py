@@ -2,69 +2,83 @@ import streamlit as st
 import imaplib
 import email
 from email.header import decode_header
-import re
 import pandas as pd
+import re
 
-# Configuração da página
-st.set_page_config(page_title="Reddit Monitor", layout="wide")
+# CONFIGURAÇÕES DIRETO NO CÓDIGO (Para resolver o erro de conexão)
+EMAIL_USER = "thais.bughi@monsterd.com.br"
+EMAIL_PASS = "bdfvxofassdpxjnx"
+IMAP_SERVER = "outlook.office365.com"
 
-st.title("🚀 Operação Reddit")
-st.write("Fila de interações baseada nos alertas do F5Bot.")
+st.set_page_config(page_title="Operação Reddit", layout="wide")
 
-def check_alerts():
-    alerts = []
+st.title("🚀 Operação Reddit - F5Bot")
+st.write("Fila de atendimento baseada nos alertas do e-mail.")
+
+def buscar_emails():
     try:
-        # Puxa os dados dos Secrets que você já configurou no Streamlit
-        mail = imaplib.IMAP4_SSL(st.secrets["IMAP_SERVER"])
-        mail.login(st.secrets["EMAIL_USER"], st.secrets["EMAIL_PASS"])
+        # Conexão
+        mail = imaplib.IMAP4_SSL(IMAP_SERVER)
+        mail.login(EMAIL_USER, EMAIL_PASS)
         mail.select("inbox")
 
         # Busca e-mails do F5Bot
         status, messages = mail.search(None, '(FROM "noreply@f5bot.com")')
-        mail_ids = messages[0].split()[-15:] # Pega os últimos 15 e-mails
-        
-        for m_id in reversed(mail_ids):
-            res, msg_data = mail.fetch(m_id, "(RFC822)")
-            for response_part in msg_data:
-                if isinstance(response_part, tuple):
-                    msg = email.message_from_bytes(response_part[1])
+        email_ids = messages[0].split()
+
+        dados = []
+        # Pega os últimos 20 e-mails
+        for i in range(len(email_ids), max(0, len(email_ids)-20), -1):
+            res, msg = mail.fetch(str(i), "(RFC822)")
+            for response in msg:
+                if isinstance(response, tuple):
+                    msg = email.message_from_bytes(response[1])
                     subject, encoding = decode_header(msg["Subject"])[0]
                     if isinstance(subject, bytes):
                         subject = subject.decode(encoding if encoding else "utf-8")
                     
-                    keyword = subject.replace("F5Bot alert: ", "")
-                    
+                    # Extrair corpo para achar o link
                     body = ""
                     if msg.is_multipart():
                         for part in msg.walk():
-                            if part.get_content_type() == "text/plain":
+                            content_type = part.get_content_type()
+                            if content_type == "text/plain":
                                 body = part.get_payload(decode=True).decode()
                     else:
                         body = msg.get_payload(decode=True).decode()
 
-                    links = re.findall(r'(https?://(?:www\.)?reddit\.com/r/[^\s]+)', body)
-                    reddit_link = links[0] if links else "Link não encontrado"
+                    # Achar link do Reddit usando Regex
+                    links = re.findall(r'(https?://[^\s]+reddit\.com[^\s]+)', body)
+                    link_final = links[0] if links else "Link não encontrado"
                     
-                    alerts.append({
+                    # Tenta extrair a Keyword do assunto
+                    keyword = subject.replace("F5Bot: ", "")
+
+                    dados.append({
                         "Keyword": keyword,
-                        "Link": reddit_link,
+                        "Link": link_final,
                         "Data": msg["Date"]
                     })
-        mail.close()
+        
         mail.logout()
+        return pd.DataFrame(dados)
     except Exception as e:
-        st.error(f"Erro: {e}. Verifique se a Senha de Aplicativo está correta.")
-    return alerts
+        st.error(f"Erro ao conectar: {e}")
+        return pd.DataFrame()
 
 if st.button('🔄 Atualizar Fila'):
-    with st.spinner('Lendo e-mails...'):
-        data = check_alerts()
-        if data:
-            df = pd.DataFrame(data)
-            st.data_editor(
+    with st.spinner('Consultando e-mails...'):
+        df = buscar_emails()
+        if not df.empty:
+            # Torna o link clicável
+            st.dataframe(
                 df,
-                column_config={"Link": st.column_config.LinkColumn("Abrir no Reddit")},
-                hide_index=True, use_container_width=True
+                column_config={
+                    "Link": st.column_config.LinkColumn("Ir para o Reddit")
+                },
+                hide_index=True,
             )
         else:
             st.warning("Nenhum alerta encontrado na caixa de entrada.")
+
+st.info("Dica: Os alertas aparecem aqui conforme o F5Bot envia os e-mails para thais.bughi@monsterd.com.br")
